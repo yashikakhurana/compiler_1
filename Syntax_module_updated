@@ -1,0 +1,299 @@
+import java.util.*;
+import java.util.regex.*;
+import java.io.*;
+
+class ToyCompiler {
+	static String input;
+	static List<String> tokenList;
+	static String[] tokens;
+	static int ptr;
+	static List<String> floatVariables;
+	static List<String> intVariables;
+	static Map<Integer, String> variableMap;
+	static int expressionType;
+	static int ctr;
+	
+	public static void main(String args[]) throws Exception {
+		BufferedReader br = new BufferedReader(new InputStreamReader(new FileInputStream("input.txt")));
+		floatVariables = new LinkedList<>();
+		intVariables = new LinkedList<>();
+		variableMap = new HashMap<>();
+		ctr = 0;
+		while((input = br.readLine()) != null) {
+			System.out.println(input);
+			lexicalAnalysis();
+			syntacticAnalysis();
+			semanticAnalysis();
+		}
+	}
+  static void syntacticAnalysis() {
+		/* 
+		Grammar:
+		line -> SYM4 declaration SYM5
+		line -> KEY1 IDE OPR1 expression SYM3
+		line -> KEY2 IDE OPR1 expression SYM3
+		declaration -> KEY1 identifiers
+		declaration -> KEY2 identifiers
+		identifiers -> IDE
+		identifiers -> IDE SYM6 identifiers
+		expression -> IDE
+		expression -> CON1
+		expression -> CON2
+		expression -> expression OPR2 expression
+		expression -> expression OPR3 expression
+		expression -> expression OPR4 expression
+		expression -> expression OPR5 expression
+		expression -> SYM1 expression SYM2
+		expression -> SYM1 expression SYM2 OPR2 expression
+		expression -> SYM1 expression SYM2 OPR3 expression
+		expression -> SYM1 expression SYM2 OPR4 expression
+		expression -> SYM1 expression SYM2 OPR5 expression
+		terminal -> IDE
+		terminal -> CON1
+		terminal -> CON2
+		*/
+		ptr = 0;
+		tokens = tokenList.toArray(new String[0]);
+		if(line() == true) {
+			System.out.println("Valid syntax.");
+		} else {
+			System.out.println("Invalid syntax.");
+			System.exit(0);
+		}
+	}
+	
+/**********************************************************
+line() function will check the tokens syntax.
+It returns true if the tokens are according to the grammar
+else it returns false. While checking the grammar it calls 
+the declaration() function which will check the declaration
+according to the grammar.
+***********************************************************/
+
+	
+	
+	
+	static boolean line() {
+		/*
+		Grammar:
+		line -> SYM4 declaration SYM5
+		line -> KEY1 IDE OPR1 expression SYM3
+		line -> KEY2 IDE OPR1 expression SYM3
+		*/
+		expressionType = 0;
+		if((!tokens[ptr].equals("KEY1")) && (!tokens[ptr].equals("KEY2"))) {
+			if(!tokens[ptr].equals("SYM4")) {
+				return false;
+			} else {
+				ptr++;
+				if(declaration() == false) {
+					return false;
+				}
+				if(!tokens[ptr++].equals("SYM5")) {
+					return false;
+				}
+				return true;
+			}
+		}
+		ptr++;
+		if(!tokens[ptr++].contains("IDE")) {
+			return false;
+		}
+		if(!tokens[ptr++].equals("OPR1")) {
+			return false;
+		}
+		if(expression() == false) {
+			return false;
+		}
+		try {
+			if(!tokens[ptr++].equals("SYM3")) {
+				return false;
+			}
+		} catch(ArrayIndexOutOfBoundsException e) {
+			System.out.println("Missing semicolon.");
+			return false;
+		}
+		return true;
+	}
+	
+/**********************************************************
+declaration() function will check the declaration syntax is 
+according to the grammar or not. It will call the identifier()
+function to check syntax.
+***********************************************************/
+
+	
+	
+	
+	static boolean declaration() {
+		/*
+		Grammar:
+		declaration -> KEY1 identifiers
+		declaration -> KEY2 identifiers
+		*/
+		
+		if((!tokens[ptr].equals("KEY1")) && (!tokens[ptr].equals("KEY2"))) {
+			return false;
+		}
+		ptr++;
+		if(identifiers(Integer.parseInt(tokens[ptr-1].substring(tokens[ptr].length()-1, tokens[ptr].length()))) == false) {
+			return false;
+		}
+		return true;
+	}
+	
+/**********************************************************
+identifier() function will check the syntax of identifiers
+according to the defined grammar. It will get the type as
+input from the declaration() function.
+***********************************************************/
+
+	
+	
+	static boolean identifiers(int type) {
+		/*
+		Grammar:
+		identifiers -> IDE
+		identifiers -> IDE SYM6 identifiers
+		*/
+		if(tokens[ptr].contains("IDE")) {
+			if(type == 1) {
+				intVariables.add(variableMap.get(Integer.parseInt(tokens[ptr].substring(tokens[ptr].length()-1, tokens[ptr].length()))));
+			} else {
+				floatVariables.add(variableMap.get(Integer.parseInt(tokens[ptr].substring(tokens[ptr].length()-1, tokens[ptr].length()))));
+				
+			}
+			ptr++;
+			int fallback = ptr;
+			if(tokens[ptr++].equals("SYM6")) {
+				if(identifiers(type) == true) {
+					return true;
+				}
+			} else {
+				ptr = fallback;
+			}
+			return true;
+		}
+		return false;
+	}
+	
+/**********************************************************
+expression() function will check the expression syntax according
+to the defined grammar. To check the syntax it will call the
+terminal() function and arithmeticOperator() function.
+***********************************************************/
+
+	
+	
+	
+	static boolean expression() {
+		/*
+		Grammar:
+		expression -> terminal
+		expression -> terminal OPR2 expression
+		expression -> terminal OPR3 expression
+		expression -> terminal OPR4 expression
+		expression -> terminal OPR5 expression
+		expression -> SYM1 expression SYM2
+		expression -> SYM1 expression SYM2 OPR2 expression
+		expression -> SYM1 expression SYM2 OPR3 expression
+		expression -> SYM1 expression SYM2 OPR4 expression
+		expression -> SYM1 expression SYM2 OPR5 expression
+		*/
+		int fallback = ptr;
+		if(terminal()) {
+			if(arithmeticOperator()) {
+				if(expression()) {
+					return true;
+				}
+			}
+			return true;
+		} else {
+			if(tokens[ptr++].equals("SYM1")) {
+				if(expression()) {
+					if(tokens[ptr++].equals("SYM2")) {
+						if(arithmeticOperator()) {
+							if(expression()) {
+								return true;
+							}
+						}
+						return true;
+					}
+				}
+			} else {
+				ptr = fallback;
+			}
+		}
+		return false;
+	}
+	
+	/**********************************************************
+terminal() function will check the terminal syntax according
+to the defined grammar. It will use the expressionType to check
+the type casting.
+***********************************************************/
+	
+	
+	static boolean terminal() {
+		/*
+		Grammar:
+		terminal -> IDE
+		terminal -> CON1
+		terminal -> CON2
+		*/
+		if(tokens[ptr].contains("IDE")) {
+			String variable = variableMap.get(Integer.parseInt(tokens[ptr].substring(tokens[ptr].length()-1, tokens[ptr].length())));
+			if((intVariables.contains(variable)) && (expressionType <= 1)) {
+				expressionType = 1;
+			} else {
+				if(expressionType == 1) {
+					System.out.println("Type casting to float.");
+				}
+				expressionType = 2;
+			}
+			ptr++;
+			return true;
+		} else if(tokens[ptr].equals("CON1")) {
+			ptr++;
+			if(expressionType < 1) {
+				expressionType = 1;
+			}
+			return true;
+		} else if(tokens[ptr].equals("CON2")) {
+			ptr++;
+			if(expressionType == 1) {
+				System.out.println("Type casting to float.");
+			}
+			expressionType = 2;
+			return true;
+		}
+		return false;
+	}
+/**********************************************************
+arithmeticOperator() function will check all the operators with
+the defined operators. If the operator is equal to the defined
+operator it will increase the ptr pointer and returns true, else 
+it will return false.
+***********************************************************/
+	
+	
+	
+	static boolean arithmeticOperator() {
+		if(tokens[ptr].equals("OPR2")) {
+			ptr++;
+			return true;
+		}
+		if(tokens[ptr].equals("OPR3")) {
+			ptr++;
+			return true;
+		}
+		if(tokens[ptr].equals("OPR4")) {
+			ptr++;
+			return true;
+		}
+		if(tokens[ptr].equals("OPR5")) {
+			ptr++;
+			return true;
+		}
+		return false;
+	}
